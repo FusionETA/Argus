@@ -1,0 +1,14 @@
+{
+  "name": "argus",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Modular unattended browser smoke-test bot",
+  "scripts": {
+    "clockin": "node plugins/altomatehr/clockin.js",
+    "clockout": "node plugins/altomatehr/clockout.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "playwright": "^1.45.0"
+  }
+}
