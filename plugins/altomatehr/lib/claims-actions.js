@@ -74,8 +74,11 @@ export async function pickFirstSelectOption(page, triggerId) {
 // dialog all render. Opens and closes the wizard (no data written).
 export async function navCheck(page, base) {
   await gotoClaimsList(page, base);
+  // Loose match: the employee shell renamed this title "My Claims" -> "Claims"
+  // on 2026-07-17 (AltomateHR 86bcc3e), which silently broke this check for
+  // three runs. The FAB + wizard checks below carry the real signal.
   const heading = await page
-    .getByRole('heading', { name: /my claims/i })
+    .getByRole('heading', { name: /claims/i })
     .first()
     .isVisible({ timeout: 8000 })
     .catch(() => false);
@@ -95,12 +98,19 @@ export async function navCheck(page, base) {
   }
 
   const success = heading && fabVisible && wizardOk;
+  // Name the element(s) that failed — "one or more ... failed to render" meant
+  // every stale-selector hunt started from scratch.
+  const missing = [
+    heading ? null : 'heading',
+    fabVisible ? null : 'new-claim FAB',
+    wizardOk ? null : 'wizard dialog',
+  ].filter(Boolean);
   return {
     success,
     heading,
     fab: fabVisible,
     wizard: wizardOk,
-    error: success ? null : 'one or more claims UI elements failed to render',
+    error: success ? null : `claims UI failed to render: ${missing.join(', ')}`,
   };
 }
 
