@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { launchBrowser, closeBrowser } from '../../core/browser.js';
 import { login } from './lib/login.js';
-import { sendReport } from '../../core/report.js';
+import { sendReportOnFailure } from '../../core/report.js';
 import { nowMYT } from '../../core/time.js';
 import { navCheck, submitDummyClaim, newMarker } from './lib/claims-actions.js';
 
@@ -42,7 +42,7 @@ try {
   console.error(`[claims-submit] run failed: ${err.message}`);
 } finally {
   await closeBrowser(browser);
-  await sendReport(buildReport(result));
+  await sendReportOnFailure(result, buildReport(result));
 }
 
 function buildReport(r) {

@@ -1,33 +1,41 @@
+// Always log the report locally (stdout -> logs/<action>.log). Only push it to the
+// Bitrix24 chat when the run FAILED (result.error is set). Successful runs stay quiet.
+export async function sendReportOnFailure(result, text) {
+  console.log('\n----- REPORT -----\n' + text + '\n------------------');
+  if (result && result.error) {
+    await sendReport(text);
+  } else {
+    console.log('[report] all checks passed — logged only, no Bitrix notification sent');
+  }
+}
+
+// Posts the smoke-test report into the "AltomateHR Notif" Bitrix24 chat — the same
+// chat (and webhook) the HR app uses for its sign-in notifications.
+// Call: POST {BITRIX_WEBHOOK_URL}/im.message.add.json  with DIALOG_ID + MESSAGE.
 export async function sendReport(text) {
-  const apiKey = process.env.WAZZUP_API_KEY;
-  const channelId = process.env.WAZZUP_CHANNEL_ID;
-  const recipients = (process.env.REPORT_RECIPIENTS || '').split(',').map(r => r.trim()).filter(Boolean);
+  const webhook = (process.env.BITRIX_WEBHOOK_URL || '').trim().replace(/\/+$/, '');
+  const dialogId = (process.env.BITRIX_DIALOG_ID || '').trim();
 
-  for (const chatId of recipients) {
-    const payload = JSON.stringify({
-      channelId,
-      chatId,
-      chatType: 'whatsapp',
-      text,
+  if (!webhook || !dialogId) {
+    console.error('[report] BITRIX_WEBHOOK_URL / BITRIX_DIALOG_ID not set — skipping report');
+    return;
+  }
+
+  const body = new URLSearchParams({ DIALOG_ID: dialogId, MESSAGE: text });
+
+  try {
+    const res = await fetch(`${webhook}/im.message.add.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
     });
-
-    try {
-      const res = await fetch('https://api.wazzup24.com/v3/message', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: payload,
-      });
-      if (res.ok) {
-        console.log(`[report] sent to ${chatId}`);
-      } else {
-        const body = await res.text();
-        console.error(`[report] failed for ${chatId}: ${res.status} ${body}`);
-      }
-    } catch (err) {
-      console.error(`[report] error sending to ${chatId}: ${err.message}`);
+    const json = await res.json().catch(() => ({}));
+    if (res.ok && !json.error) {
+      console.log(`[report] sent to Bitrix ${dialogId} (message id ${json.result ?? '?'})`);
+    } else {
+      console.error(`[report] failed for ${dialogId}: ${res.status} ${JSON.stringify(json)}`);
     }
+  } catch (err) {
+    console.error(`[report] error sending to ${dialogId}: ${err.message}`);
   }
 }

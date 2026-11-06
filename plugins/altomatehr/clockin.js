@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { launchBrowser, closeBrowser } from '../../core/browser.js';
 import { login } from './lib/login.js';
-import { sendReport } from '../../core/report.js';
+import { sendReportOnFailure } from '../../core/report.js';
 import { nowMYT } from '../../core/time.js';
 
 const ACTION = 'Clock In';
@@ -24,30 +24,39 @@ try {
 
   // Clock in flow
   try {
-    const tapClockInBtn = page.locator('button:has-text("Tap to Clock In")');
-    const clockOutBtn = page.locator('button:has-text("Clock Out")');
+    // The dashboard sometimes shows a browser-notification nudge that overlays the card.
+    const notNow = page.getByRole('button', { name: /not now/i });
+    if (await notNow.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await notNow.click().catch(() => {});
+      await page.waitForTimeout(500);
+    }
+
+    // The clock widget uses plain text labels (not <button>s). Off shift it reads
+    // "Tap to Clock In" (first shift of the day) or "Start another shift" (after a
+    // completed shift); on shift it reads "Tap to Clock Out".
+    const tapClockIn = page.getByText(/Tap to Clock In|Start another shift/i).first();
+    const clockOut = page.getByText('Tap to Clock Out').first();
 
     // Race: find either "Tap to Clock In" or "Clock Out" (already clocked in)
     const found = await Promise.race([
-      tapClockInBtn.waitFor({ timeout: 15000 }).then(() => 'clockin'),
-      clockOutBtn.waitFor({ timeout: 15000 }).then(() => 'clockout'),
+      tapClockIn.waitFor({ timeout: 15000 }).then(() => 'clockin'),
+      clockOut.waitFor({ timeout: 15000 }).then(() => 'clockout'),
     ]).catch(() => 'timeout');
 
     if (found === 'clockout') {
-      result.clock = { success: false, error: 'Already clocked in — Clock Out button is visible instead' };
+      result.clock = { success: false, error: 'Already clocked in — Clock Out is shown instead' };
       throw new Error('Already clocked in');
     } else if (found === 'timeout') {
-      result.clock = { success: false, error: 'Clock In button not found on page' };
-      throw new Error('Clock In button not found');
+      result.clock = { success: false, error: 'Clock In control not found on page' };
+      throw new Error('Clock In control not found');
     }
 
-    // Select default project if the dropdown is present
+    // Select default project only if a dropdown is present (modern UI pre-selects it).
     const projectDropdown = page.locator('button:has-text("Select a project")');
-    if (await projectDropdown.isVisible({ timeout: 3000 }).catch(() => false)) {
+    if (await projectDropdown.isVisible({ timeout: 2000 }).catch(() => false)) {
       console.log('[clockin] selecting project...');
       await projectDropdown.click();
       await page.waitForTimeout(1000);
-      // Pick the first option (default project)
       const firstOption = page.locator('[role=option]').first();
       await firstOption.waitFor({ timeout: 5000 });
       await firstOption.click();
@@ -55,9 +64,16 @@ try {
       console.log('[clockin] project selected');
     }
 
-    await tapClockInBtn.click();
+    // The tappable control is the card wrapping the "Tap to Clock In" label, not the
+    // <p> itself — clicking the card fires POST /api/attendance/clock-in.
+    const card = tapClockIn.locator(
+      'xpath=ancestor::*[contains(@class,"rounded-[24px]") or contains(@class,"cursor-pointer")][1]'
+    );
+    const clickTarget = (await card.count()) ? card.first() : tapClockIn;
+    await clickTarget.click();
 
-    // Capture the clock time shown on screen
+    // Confirm it registered: the widget flips to on-shift ("Tap to Clock Out" appears).
+    await page.getByText('Tap to Clock Out').first().waitFor({ timeout: 10000 });
     const timeEl = page.getByText(/\d{1,2}:\d{2}/).first();
     const clockTime = await timeEl.textContent({ timeout: 5000 }).catch(() => null);
     result.clock = { success: true, time: clockTime };
@@ -88,7 +104,7 @@ try {
   console.error(`[clockin] run failed: ${err.message}`);
 } finally {
   await closeBrowser(browser);
-  await sendReport(buildReport(result));
+  await sendReportOnFailure(result, buildReport(result));
 }
 
 function buildReport(r) {

@@ -35,11 +35,28 @@ export async function login(page, url, email, password) {
 
       // Poll URL every second for up to 20s
       let landed = false;
+      // Success = EITHER the URL leaves /login, OR the dashboard renders in place.
+      // Note: since ~2026-09, the app is an SPA that keeps the URL on /login after a
+      // successful sign-in and swaps the dashboard in without navigating. So we detect
+      // the authenticated shell (clock widget / nav labels are plain text, NOT buttons)
+      // together with the login form having unmounted (no password field).
+      const shell = page.getByText('Tap to Clock In')
+        .or(page.getByText('Clock Out'))
+        .or(page.getByText('Dashboard'))
+        .first();
+      const pwField = page.locator('input[type=password]').first();
       for (let s = 0; s < 20; s++) {
         await page.waitForTimeout(1000);
         const current = page.url();
         console.log(`[login] ${s + 1}s after submit: ${current}`);
         if (!current.includes('/login')) {
+          landed = true;
+          break;
+        }
+        const shellVisible = await shell.isVisible({ timeout: 250 }).catch(() => false);
+        const formGone = !(await pwField.isVisible({ timeout: 250 }).catch(() => true));
+        if (shellVisible && formGone) {
+          console.log('[login] dashboard rendered (URL still /login) — login OK');
           landed = true;
           break;
         }
