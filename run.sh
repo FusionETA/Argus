@@ -15,5 +15,9 @@ LOG="logs/${ACTION}.log"
 TS="$(date '+%Y-%m-%d %H:%M:%S %Z')"
 
 echo "===== ${ACTION} @ ${TS} =====" >> "$LOG"
-/usr/bin/xvfb-run -a "$NODE" "plugins/altomatehr/${ACTION}.js" >> "$LOG" 2>&1
-echo "===== ${ACTION} exit $? @ $(date '+%H:%M:%S %Z') =====" >> "$LOG"
+# Capture the exit code instead of letting set -e abort, so failed runs still
+# get their footer line; then pass the code through to cron.
+RC=0
+/usr/bin/xvfb-run -a "$NODE" "plugins/altomatehr/${ACTION}.js" >> "$LOG" 2>&1 || RC=$?
+echo "===== ${ACTION} exit ${RC} @ $(date '+%H:%M:%S %Z') =====" >> "$LOG"
+exit "$RC"
