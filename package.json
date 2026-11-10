@@ -5,7 +5,8 @@
   "description": "Modular unattended browser smoke-test bot",
   "scripts": {
     "clockin": "node plugins/altomatehr/clockin.js",
-    "clockout": "node plugins/altomatehr/clockout.js"
+    "clockout": "node plugins/altomatehr/clockout.js",
+    "claims-check": "node plugins/altomatehr/claims-check.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
