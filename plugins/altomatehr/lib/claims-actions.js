@@ -1,4 +1,5 @@
-// Shared building blocks for the AltomateHR claims smoke test (claims-check.js).
+// Shared building blocks for the AltomateHR claims smoke test (claims-check.js,
+// and the claims step of the 09:00 clockin.js run).
 //
 // READ-ONLY by design. Since the Nov 2026 redesign a submitted claim is
 // auto-approved immediately and the employee UI has no delete, so a test claim

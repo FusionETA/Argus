@@ -3,14 +3,19 @@ import { launchBrowser, closeBrowser } from '../../core/browser.js';
 import { login } from './lib/login.js';
 import { sendReportOnFailure } from '../../core/report.js';
 import { nowMYT } from '../../core/time.js';
+import { navCheck } from './lib/claims-actions.js';
 
+// Argus 09:00 run — one login, then clock in followed by the read-only claims
+// check (same as claims-check.js, nothing submitted) in the same browser session.
+const TITLE = 'Clock In + Claims Check';
 const ACTION = 'Clock In';
 const URL = process.env.ALTOMATEHR_URL;
 const EMAIL = process.env.ALTOMATEHR_EMAIL;
 const PASSWORD = process.env.ALTOMATEHR_PASSWORD;
+const base = (URL || '').replace(/\/$/, '');
 
 let browser, page;
-const result = { login: null, clock: null, approval: null, error: null };
+const result = { login: null, clock: null, approval: null, claims: null, error: null };
 
 try {
   ({ browser, page } = await launchBrowser());
@@ -79,24 +84,38 @@ try {
     result.clock = { success: true, time: clockTime };
     console.log(`[clockin] clocked in at ${clockTime}`);
   } catch (err) {
+    // Record it but don't abort: the claims check below doesn't depend on the
+    // clock widget, so it still runs.
     if (!result.clock) result.clock = { success: false, error: err.message };
-    throw err;
+    result.error = err.message;
+    console.error(`[clockin] clock in failed: ${err.message}`);
   }
 
-  // Wait for auto-approval (~90 seconds)
-  console.log('[clockin] waiting 90s for auto-approval...');
-  await new Promise(resolve => setTimeout(resolve, 90_000));
+  if (result.clock?.success) {
+    // Wait for auto-approval (~90 seconds)
+    console.log('[clockin] waiting 90s for auto-approval...');
+    await new Promise(resolve => setTimeout(resolve, 90_000));
 
-  // Read approval status
-  try {
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(3000);
-    const approvalEl = page.getByText(/approved|pending|rejected/i).first();
-    const approvalText = await approvalEl.textContent({ timeout: 10000 });
-    result.approval = approvalText.trim();
-    console.log(`[clockin] approval status: ${result.approval}`);
-  } catch (err) {
-    result.approval = `unknown (${err.message})`;
+    // Read approval status
+    try {
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(3000);
+      const approvalEl = page.getByText(/approved|pending|rejected/i).first();
+      const approvalText = await approvalEl.textContent({ timeout: 10000 });
+      result.approval = approvalText.trim();
+      console.log(`[clockin] approval status: ${result.approval}`);
+    } catch (err) {
+      result.approval = `unknown (${err.message})`;
+    }
+  }
+
+  // Claims check (read-only — walks the wizard to the form and cancels)
+  result.claims = await navCheck(page, base);
+  if (result.claims.success) {
+    console.log(`[clockin] claims check OK — ${result.claims.steps.length} steps passed`);
+  } else {
+    result.error = [result.error, result.claims.error].filter(Boolean).join('; ');
+    console.error(`[clockin] ${result.claims.error}`);
   }
 
 } catch (err) {
@@ -131,8 +150,16 @@ function buildReport(r) {
     approvalStatus = isApproved ? status : `⚠️ ${status}`;
   }
 
+  const claimsStatus = !r.login?.success
+    ? 'SKIPPED (login failed)'
+    : r.claims?.success
+      ? `SUCCESS — list + wizard up to the form render (${r.claims.steps.length} steps, nothing submitted)`
+      : r.claims
+        ? `⚠️ FAILED — ${r.claims.error ?? 'unknown'}`
+        : 'NOT RUN (run aborted)';
+
   return [
-    `🤖 Argus — ${ACTION} Report`,
+    `🤖 Argus — ${TITLE} Report`,
     `📅 ${ts} (MYT)`,
     `👤 Account: ${EMAIL}`,
     ``,
@@ -142,6 +169,8 @@ function buildReport(r) {
     `⏱️ ${ACTION}: ${clockStatus}`,
     ``,
     `✅ Approval: ${approvalStatus}`,
+    ``,
+    `🧭 Claims page + wizard: ${claimsStatus}`,
     r.error ? `\n❌ Error: ${r.error}` : '',
   ].filter(line => line !== undefined).join('\n');
 }

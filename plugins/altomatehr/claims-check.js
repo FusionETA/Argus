@@ -5,7 +5,8 @@ import { sendReportOnFailure } from '../../core/report.js';
 import { nowMYT } from '../../core/time.js';
 import { navCheck } from './lib/claims-actions.js';
 
-// Argus claims — READ-ONLY smoke test (cron ~09:30 weekdays).
+// Argus claims — READ-ONLY smoke test. Standalone/manual run; the weekday 09:00
+// cron runs the same check inside clockin.js, right after clocking in.
 // Logs in, opens the claims list and walks the "Submit a claim" wizard up to
 // the form, then cancels. Nothing is submitted: since the Nov 2026 redesign
 // claims are auto-approved on submit and can't be deleted by the employee,
