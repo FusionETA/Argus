@@ -15,6 +15,11 @@ const URL = process.env.MY_APP_URL;
 const USER = process.env.MY_APP_EMAIL;
 const PASSWORD = process.env.MY_APP_PASSWORD;
 const base = (URL || '').replace(/\/$/, '');
+// Where failure alerts go (both optional; unset = the default Argus chat). See SKILL.md step 1.
+const NOTIFY = {
+  dialogId: process.env.MY_APP_BITRIX_DIALOG_ID,
+  webhook: process.env.MY_APP_BITRIX_WEBHOOK_URL,
+};
 
 let browser, page;
 const result = { login: null, check: null, blocked: [], error: null };
@@ -40,7 +45,7 @@ try {
   console.error(`[my-app] run failed: ${err.message}`);
 } finally {
   await closeBrowser(browser);
-  await sendReportOnFailure(result, buildReport(result));
+  await sendReportOnFailure(result, buildReport(result), NOTIFY);
 }
 
 // Walks the steps in order and stops at the first that fails, naming it.

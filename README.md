@@ -2,8 +2,9 @@
 
 FusionETA's unattended browser smoke-test bot. Each check is a headed Playwright
 script that logs into an app, walks a journey and reports. Root's cron runs them on
-weekdays on the `agents-s-2vcpu-4gb-sgp1` droplet. Failures post to a Bitrix24 chat;
-successful runs only log.
+weekdays on the `agents-s-2vcpu-4gb-sgp1` droplet. Failures post to Bitrix24: each
+check's own chat(s) or people if it sets `<APP>_BITRIX_DIALOG_ID`, otherwise the
+default chat. Successful runs only log.
 
 **To add or change a check, ask Claude in a session on this repo.** The
 `argus-new-test` skill (`.claude/skills/argus-new-test/SKILL.md`) handles the
@@ -16,7 +17,7 @@ whole flow: intake, read-only investigation, plan, script, test, deploy.
 | `run.sh` | Cron wrapper: `run.sh <app>/<action>` runs `plugins/<app>/<action>.js` under `xvfb-run` and logs to `logs/<app>-<action>.log`. A bare `run.sh <action>` means AltomateHR (`logs/<action>.log`). |
 | `core/browser.js` | Launches headed Chromium with a geolocation-granted context. |
 | `core/guard.js` | `blockWrites(page)` aborts every POST/PUT/PATCH/DELETE after login, so read-only checks can't save anything. |
-| `core/report.js` | `sendReportOnFailure(result, text)`: always logs, posts to Bitrix only when `result.error` is set. |
+| `core/report.js` | `sendReportOnFailure(result, text, { dialogId, webhook })`: always logs, posts to Bitrix only when `result.error` is set. `dialogId` is comma-separated chats (`chat1234`) and/or user IDs; both fall back to `BITRIX_DIALOG_ID` / `BITRIX_WEBHOOK_URL`. `ARGUS_NO_NOTIFY=1` suppresses all posts, for test runs. |
 | `core/time.js` | `nowMYT()` for report timestamps. |
 | `plugins/<app>/` | One folder per app: checks as `<action>.js`, helpers (incl. `login.js`) in `lib/`. |
 | `tools/recon.js` | Read-only page inventory and screenshots, for planning a new check. |

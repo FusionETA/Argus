@@ -8,7 +8,7 @@ description: Build a new Argus check (a scheduled Playwright smoke test) for one
 Argus is FusionETA's unattended smoke-test bot. Each check is a headed Playwright
 script in `plugins/<app>/<action>.js`, run on weekdays by root's cron on this droplet
 through `/root/argus/run.sh <app>/<action>`. A failure posts a report to the Bitrix
-chat set in `.env`. Read `README.md` in this repo for the layout and conventions.
+chat(s) or people chosen for that check (step 1, item 6); passes only log. Read `README.md` in this repo for the layout and conventions.
 
 You are working **as root on the box that runs PROD Argus**. Follow these rules for
 the whole session, whoever asks:
@@ -39,7 +39,24 @@ in one message:
 4. **Does it change data?** Expect "no". If yes, say exactly what (see step 5).
 5. **Schedule**: days and time (MYT), e.g. weekdays 09:15. Avoid 09:00–09:02 and
    18:00–18:02, when the AltomateHR jobs run.
-6. **Their name and email**: every session runs under one shared account, so
+6. **Where should failure alerts go?** Ask this every time; don't assume. Options:
+   - **The default Argus chat**: "AltomateHR Notif", where AltomateHR alerts go.
+     This is fine for a trial, but alerts about other apps get lost there, so suggest a
+     better home.
+   - **A Bitrix group chat**, e.g. the app team's chat. You need its dialog ID, `chat` plus
+     a number: open the chat in Bitrix in a browser and it's in the address bar as
+     `IM_DIALOG=chat1234` (or `dialogId=chat1234`). **The Bitrix user behind Argus's
+     webhook must be a member of that chat**, so ask them to add it. The default
+     chat's webhook posts as that same user.
+   - **A direct message to a person**: their Bitrix user ID, the number in their
+     profile URL (`/company/personal/user/57/`).
+   - **Several of these**: comma-separated, e.g. `chat1234,57`.
+   - **A different Bitrix portal**, or posting as a different user: that needs its own
+     inbound webhook URL with the `im` scope. It's a secret, so treat it like a password
+     (step 3).
+
+   Alerts are sent only when a run fails. A passing run only logs.
+7. **Their name and email**: every session runs under one shared account, so
    commits need the real author (step 8).
 
 Pick the names now. `<app>` and `<action>` are lowercase with dashes, e.g.
@@ -80,10 +97,17 @@ box themselves, over SSH or the DigitalOcean droplet console:
 `nano /root/argus/.env`, add the lines, save. **Don't collect the values in chat.**
 `.env` stays `chmod 600`.
 
-To pass these to your scripts, run them with
-`--env-file=/root/argus/.env`. Put `BITRIX_WEBHOOK_URL=` in front of every test run so
-test failures don't post to the live chat. A real environment variable beats the
-file, so this blanks the webhook.
+**Alert destination** (from step 1, item 6):
+- **Default chat:** add nothing.
+- **Another chat, person or several:** set `<APP>_BITRIX_DIALOG_ID`. Dialog IDs aren't secret, so
+  you may add this line yourself. Check it isn't already there, then append it:
+  `printf '<APP>_BITRIX_DIALOG_ID=chat1234\n' >> /root/argus/.env`.
+- **Different portal or user:** the person adds `<APP>_BITRIX_WEBHOOK_URL` themselves, like a
+  password.
+
+To pass these to your scripts, run them with `--env-file=/root/argus/.env`. Put
+`ARGUS_NO_NOTIFY=1` in front of every test run so test failures don't post to anyone's
+chat.
 
 ## 4. Investigate, read-only
 
@@ -92,7 +116,7 @@ turns on the write guard, then screenshots and lists headings, buttons, fields,
 tables and links for each page. It never clicks.
 
 ```bash
-BITRIX_WEBHOOK_URL= xvfb-run -a /opt/node24/bin/node --env-file=/root/argus/.env \
+ARGUS_NO_NOTIFY=1 xvfb-run -a /opt/node24/bin/node --env-file=/root/argus/.env \
   tools/recon.js --app <app> --login / /path/one /path/two
 ```
 
@@ -160,18 +184,22 @@ Conventions:
 
 ## 7. Test
 
-Run from your checkout with Bitrix blanked:
+Run from your checkout with alerts switched off:
 
 ```bash
-BITRIX_WEBHOOK_URL= xvfb-run -a /opt/node24/bin/node --env-file=/root/argus/.env plugins/<app>/<action>.js
+ARGUS_NO_NOTIFY=1 xvfb-run -a /opt/node24/bin/node --env-file=/root/argus/.env plugins/<app>/<action>.js
 ```
 
 - Get it passing at least twice in a row.
 - Check the **failure path** too: point it at a broken URL, e.g.
   `<APP>_URL=https://example.invalid` before the command. Confirm the report names
   the failure and `result.error` is set.
-- If the person wants to see a real alert, run it once **without** the blank
-  `BITRIX_WEBHOOK_URL=`, while it's failing on purpose, and tell them to expect it.
+- **Check the alert really arrives.** This is required whenever the destination isn't the
+  default chat. Tell the person to expect it, then run the deliberately failing
+  command once **without** `ARGUS_NO_NOTIFY=1`. Look for
+  `[report] sent to Bitrix <id>` for every destination, and ask them to confirm it
+  showed up. A `failed for chat…` error usually means Argus's webhook user isn't in
+  that chat yet.
 - For an approved write check, do only the number of runs they approved.
 
 Show the person the final passing report.
@@ -217,8 +245,8 @@ ARGUS_NODE=/opt/node24/bin/node /root/argus/run.sh <app>/<action>
 tail -25 /root/argus/logs/<app>-<action>.log
 ```
 
-Finish by telling the person the schedule, the log path, and that failures alert in
-the Bitrix chat.
+Finish by telling the person the schedule, the log path, and where failure alerts
+go. The dry run prints the destination.
 
 ## Changing or removing a check
 

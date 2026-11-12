@@ -8,7 +8,7 @@
 // <APP>_PASSWORD, optional <APP>_LOGIN_URL) — never from the command line.
 //
 // Usage (from the repo root, headed browser needs a display):
-//   BITRIX_WEBHOOK_URL= xvfb-run -a /opt/node24/bin/node --env-file=/root/argus/.env \
+//   ARGUS_NO_NOTIFY=1 xvfb-run -a /opt/node24/bin/node --env-file=/root/argus/.env \
 //     tools/recon.js --app myapp [--login] [--allow-post <regex>]... <url-or-path>...
 // Paths ("/settings") are resolved against <APP>_URL.
 import { mkdirSync, writeFileSync } from 'node:fs';

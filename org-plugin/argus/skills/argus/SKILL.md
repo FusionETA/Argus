@@ -31,7 +31,8 @@ test -d /root/argus && ls /root/self-hosted-claude/FusionETA/argus/.claude/skill
 
 - **What Argus is:** a scheduled, headed Playwright bot. Each check logs into an app with a
   test account and walks one journey. It is read-only unless an owner approved
-  otherwise. Failures post a report to the Bitrix chat; passes only log.
+  otherwise. Failures post a report to the Bitrix chat(s) or people chosen for that
+  check, or to the default Argus chat. Passes only log.
 - **Current checks:** listed in the repo's `README.md` ("Current checks").
 - **Logs:** on the droplet, in `/root/argus/logs/<app>-<action>.log` (AltomateHR:
   `/root/argus/logs/<action>.log`).
