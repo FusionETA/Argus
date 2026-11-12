@@ -1,23 +1,35 @@
 #!/usr/bin/env bash
 # Argus cron wrapper — runs a plugin action under a virtual X display and logs it.
-# Usage: run.sh clockin | clockout | claims-check
+# Usage: run.sh <app>/<action>   -> plugins/<app>/<action>.js, log logs/<app>-<action>.log
+#        run.sh <action>         -> AltomateHR (plugins/altomatehr/<action>.js, logs/<action>.log),
+#                                   kept for the original clockin | clockout | claims-check cron lines
 set -euo pipefail
 
-ACTION="${1:?usage: run.sh clockin|clockout|claims-check}"
+ACTION="${1:?usage: run.sh <app>/<action> | clockin|clockout|claims-check}"
+if [[ ! "$ACTION" =~ ^[a-z0-9-]+(/[a-z0-9-]+)?$ ]]; then
+  echo "run.sh: invalid action '${ACTION}' (expected <app>/<action>, lowercase letters, digits, dashes)" >&2
+  exit 2
+fi
 cd "$(dirname "$(readlink -f "$0")")"
+
+if [[ "$ACTION" == */* ]]; then
+  SCRIPT="plugins/${ACTION}.js"
+else
+  SCRIPT="plugins/altomatehr/${ACTION}.js"
+fi
 
 # Node binary: override with ARGUS_NODE (e.g. a side-by-side /opt/node24/bin/node
 # on hosts whose system node is too old for Playwright).
 NODE="${ARGUS_NODE:-/usr/bin/node}"
 
 mkdir -p logs
-LOG="logs/${ACTION}.log"
+LOG="logs/${ACTION//\//-}.log"
 TS="$(date '+%Y-%m-%d %H:%M:%S %Z')"
 
 echo "===== ${ACTION} @ ${TS} =====" >> "$LOG"
 # Capture the exit code instead of letting set -e abort, so failed runs still
 # get their footer line; then pass the code through to cron.
 RC=0
-/usr/bin/xvfb-run -a "$NODE" "plugins/altomatehr/${ACTION}.js" >> "$LOG" 2>&1 || RC=$?
+/usr/bin/xvfb-run -a "$NODE" "$SCRIPT" >> "$LOG" 2>&1 || RC=$?
 echo "===== ${ACTION} exit ${RC} @ $(date '+%H:%M:%S %Z') =====" >> "$LOG"
 exit "$RC"
