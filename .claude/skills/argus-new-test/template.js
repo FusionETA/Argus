@@ -15,11 +15,9 @@ const URL = process.env.MY_APP_URL;
 const USER = process.env.MY_APP_EMAIL;
 const PASSWORD = process.env.MY_APP_PASSWORD;
 const base = (URL || '').replace(/\/$/, '');
-// Where failure alerts go (both optional; unset = the default Argus chat). See SKILL.md step 1.
-const NOTIFY = {
-  dialogId: process.env.MY_APP_BITRIX_DIALOG_ID,
-  webhook: process.env.MY_APP_BITRIX_WEBHOOK_URL,
-};
+// Failure alerts go to the destinations in MY_APP_NOTIFY (core/report.js), e.g.
+// "bitrix:chat1234, email:ops@fusioneta.com". Unset = the default Bitrix chat.
+const NOTIFY = { app: 'MY_APP' };
 
 let browser, page;
 const result = { login: null, check: null, blocked: [], error: null };
