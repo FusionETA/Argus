@@ -9,8 +9,9 @@
 //   whatsapp:60123456789   WhatsApp via Wazzup (international number)
 //   email:ops@example.com  email via SMTP
 //   telegram:-1001234567   Telegram chat ID, via a bot
-//   slack | teams | googlechat | webhook   incoming webhook, URL in <CH>_WEBHOOK_URL
-//   slack:ops              ...or a named one, URL in SLACK_WEBHOOK_URL_OPS
+//   slack | teams | googlechat   incoming webhook, URL in SLACK_/TEAMS_/GOOGLECHAT_WEBHOOK_URL
+//   webhook                generic JSON POST to WEBHOOK_URL (n8n, Zapier, in-house apps)
+//   slack:ops              ...or a named one: URL in SLACK_WEBHOOK_URL_OPS (WEBHOOK_URL_OPS)
 // Without MY_APP_NOTIFY (and for the AltomateHR scripts, which pass no app) the
 // report goes to the default Bitrix chat(s) in BITRIX_DIALOG_ID.
 //
@@ -22,7 +23,10 @@
 // ARGUS_NO_NOTIFY=1 suppresses every send (use it for test runs).
 
 const env = (app, key) => (app && process.env[`${app}_${key}`]) || process.env[key] || '';
-const hookKey = (ch, name) => `${ch.toUpperCase()}_WEBHOOK_URL${name ? `_${name.toUpperCase().replace(/-/g, '_')}` : ''}`;
+// slack -> SLACK_WEBHOOK_URL, slack:ops -> SLACK_WEBHOOK_URL_OPS; the generic
+// webhook channel uses WEBHOOK_URL / WEBHOOK_URL_<NAME>.
+const hookKey = (ch, name) =>
+  `${ch === 'webhook' ? '' : `${ch.toUpperCase()}_`}WEBHOOK_URL${name ? `_${name.toUpperCase().replace(/-/g, '_')}` : ''}`;
 
 async function postJson(url, payload, headers = {}) {
   const res = await fetch(url, {

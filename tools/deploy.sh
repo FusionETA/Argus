@@ -37,9 +37,9 @@ echo "== commits that will be pulled into $LIVE:"
 git log --oneline HEAD..origin/main || true
 
 # Every <APP>_* env var the app's code reads must be set (non-empty) in the live .env,
-# except the optional ones (unset = default): login URL and alert destination.
+# except the optional ones (unset = default): login URL and alert destinations.
 PREFIX="$(tr 'a-z-' 'A-Z_' <<< "$APP")_"
-OPTIONAL_RE="^${PREFIX}(LOGIN_URL|BITRIX_DIALOG_ID|BITRIX_WEBHOOK_URL)$"
+OPTIONAL_RE="^${PREFIX}(LOGIN_URL|NOTIFY)$"
 mapfile -t KEYS < <(git grep -ohE "process\.env\.${PREFIX}[A-Z0-9_]+" origin/main -- "plugins/${APP}" | sed 's/process\.env\.//' | sort -u)
 missing=()
 for k in "${KEYS[@]}"; do
@@ -49,18 +49,19 @@ done
 echo "== env keys read by plugins/${APP}: ${KEYS[*]:-(none found)}"
 [[ ${#missing[@]} -eq 0 ]] || die "missing/empty in $LIVE/.env: ${missing[*]} (add them without pasting values into chat)"
 
-# Where failure alerts will go. Dialog IDs aren't secret; the webhook URL is, so it's never printed.
-DIALOG="$(grep -E "^${PREFIX}BITRIX_DIALOG_ID=" .env | tail -1 | cut -d= -f2- || true)"
-if [[ " ${KEYS[*]} " != *" ${PREFIX}BITRIX_DIALOG_ID "* ]]; then
-  echo "== alerts: the script doesn't read ${PREFIX}BITRIX_DIALOG_ID, so it uses the default Argus chat"
-elif [[ -n "$DIALOG" ]]; then
-  echo "== alerts: ${PREFIX}BITRIX_DIALOG_ID = ${DIALOG}"
-else
-  echo "== alerts: ${PREFIX}BITRIX_DIALOG_ID not set, so failures go to the default Argus chat"
-fi
-if grep -qE "^${PREFIX}BITRIX_WEBHOOK_URL=.+" .env; then
-  echo "== alerts: posted through the app's own webhook (${PREFIX}BITRIX_WEBHOOK_URL is set)"
-fi
+# Where failure alerts will go, checked with the alert code being deployed (from
+# origin/main): every destination must be valid and have its credentials.
+NODE_BIN="${ARGUS_NODE:-/opt/node24/bin/node}"
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+git archive origin/main core tools | tar -x -C "$TMP"
+echo "== alerts:"
+"$NODE_BIN" --env-file=.env "$TMP/tools/notify.js" --app "$APP" --check \
+  || die "fix the alert destinations above first (${PREFIX}NOTIFY and the channel keys in .env)"
+
+# Dependencies changed? Then node_modules must be reinstalled after the pull.
+NPM_CI=no
+git diff --quiet HEAD origin/main -- package.json package-lock.json || NPM_CI=yes
+echo "== dependencies changed (npm ci after pull): ${NPM_CI}"
 
 CUR="$(crontab -l 2>/dev/null || true)"
 grep -q '^ARGUS_NODE=' <<< "$CUR" || die "crontab has no ARGUS_NODE= line — not the expected Argus crontab"
@@ -79,7 +80,13 @@ if [[ "$DRY" == --dry-run ]]; then
   exit 0
 fi
 
+OLD="$(git rev-parse HEAD)"
 git merge -q --ff-only origin/main
+if [[ "$NPM_CI" == yes ]]; then
+  PATH="$(dirname "$NODE_BIN"):$PATH" npm ci --no-audit --no-fund >/dev/null \
+    || die "npm ci failed — node_modules may be broken and cron jobs will fail. Roll back: git -C $LIVE reset --hard $OLD && (cd $LIVE && PATH=$(dirname "$NODE_BIN"):\$PATH npm ci)"
+  echo "== npm ci done"
+fi
 BAK="$(dirname "$LIVE")/argus-crontab.bak-$(date +%Y%m%d-%H%M%S)"
 echo "$CUR" > "$BAK"
 echo "$NEW" | crontab -
