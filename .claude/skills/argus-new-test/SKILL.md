@@ -61,6 +61,11 @@ Always use Node 24 (`/opt/node24/bin/node`). The system `/usr/bin/node` is v18 a
 belongs to another service, so leave it alone. The browser is headed, so every
 browser run needs `xvfb-run -a`.
 
+**Commit early and push the branch often** (`git push -u origin feat/<app>-<action>`).
+A session can move to a new runner mid-task, and the move can reset uncommitted
+changes to tracked files. If anything looks off after a move, check `git status` and
+`git branch` before carrying on.
+
 ## 3. Credentials
 
 Check which `<APP>_` keys already exist. This shows key **names only**:
@@ -96,6 +101,8 @@ with small throwaway Playwright scripts in your scratchpad. To open menus, tabs
 and dialogs, import `launchBrowser` from `core/browser.js` and **call
 `blockWrites(page)` from `core/guard.js` straight after login, every time**.
 Every `[guard] BLOCKED` line in the output is a request that would have changed data.
+Session/token refresh calls (e.g. `POST /api/auth/refresh`) are let through by
+default and logged as `[guard] allowed`. Blocking them logs the app out.
 
 Work out and write down:
 - **Login:** how it works: a normal redirect, or an SPA that stays on `/login` (like

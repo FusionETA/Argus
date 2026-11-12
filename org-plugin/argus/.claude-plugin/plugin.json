@@ -1,0 +1,5 @@
+{
+  "name": "argus",
+  "version": "0.1.0",
+  "description": "Entry point for Argus, FusionETA's scheduled Playwright smoke-test bot: routes requests to add, change or check an Argus test to the right session and repo skill."
+}

@@ -21,6 +21,11 @@ whole flow: intake, read-only investigation, plan, script, test, deploy.
 | `plugins/<app>/` | One folder per app: checks as `<action>.js`, helpers (incl. `login.js`) in `lib/`. |
 | `tools/recon.js` | Read-only page inventory and screenshots, for planning a new check. |
 | `tools/deploy.sh` | Fast-forwards `/root/argus` to `main` and appends one cron line, under a lock, with a crontab backup. |
+| `.claude/skills/argus-new-test/` | The workflow skill and a script template. It loads in any Claude Code session on this repo. |
+| `org-plugin/argus/` | Small org-wide plugin (published on claude.ai). It points people from any session to a "FusionAI" + FusionETA/argus session. |
+
+Work on Argus in a Claude Code session on the self-hosted **FusionAI** environment
+with this repo. Sessions on the Anthropic-cloud environment can't reach the live box.
 
 ## The live box
 

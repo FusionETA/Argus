@@ -62,7 +62,7 @@ if [[ "$DRY" == --dry-run ]]; then
 fi
 
 git merge -q --ff-only origin/main
-BAK="/root/argus-crontab.bak-$(date +%Y%m%d-%H%M%S)"
+BAK="$(dirname "$LIVE")/argus-crontab.bak-$(date +%Y%m%d-%H%M%S)"
 echo "$CUR" > "$BAK"
 echo "$NEW" | crontab -
 crontab -l | grep -qxF "$LINE" || die "crontab install did not stick — previous crontab saved at $BAK"
