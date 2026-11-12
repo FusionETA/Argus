@@ -39,23 +39,22 @@ in one message:
 4. **Does it change data?** Expect "no". If yes, say exactly what (see step 5).
 5. **Schedule**: days and time (MYT), e.g. weekdays 09:15. Avoid 09:00–09:02 and
    18:00–18:02, when the AltomateHR jobs run.
-6. **Where should failure alerts go?** Ask this every time; don't assume. Options:
-   - **The default Argus chat**: "AltomateHR Notif", where AltomateHR alerts go.
-     This is fine for a trial, but alerts about other apps get lost there, so suggest a
-     better home.
-   - **A Bitrix group chat**, e.g. the app team's chat. You need its dialog ID, `chat` plus
-     a number: open the chat in Bitrix in a browser and it's in the address bar as
-     `IM_DIALOG=chat1234` (or `dialogId=chat1234`). **The Bitrix user behind Argus's
-     webhook must be a member of that chat**, so ask them to add it. The default
-     chat's webhook posts as that same user.
-   - **A direct message to a person**: their Bitrix user ID, the number in their
-     profile URL (`/company/personal/user/57/`).
-   - **Several of these**: comma-separated, e.g. `chat1234,57`.
-   - **A different Bitrix portal**, or posting as a different user: that needs its own
-     inbound webhook URL with the `im` scope. It's a secret, so treat it like a password
-     (step 3).
+6. **Where should failure alerts go?** Ask this every time; don't assume. A check
+   can alert any mix of destinations, e.g. their team's Bitrix chat plus an email
+   address:
+   - **Bitrix24**: a group chat or a direct message to a person.
+   - **WhatsApp** (via Wazzup): a phone number.
+   - **Email** (via SMTP): one or more addresses.
+   - **Telegram**: a group or person, via a bot.
+   - **Slack, Microsoft Teams or Google Chat**: a channel, via an incoming webhook.
+   - **Generic webhook**: a JSON POST to any URL (n8n, Zapier, an in-house app).
 
-   Alerts are sent only when a run fails. A passing run only logs.
+   If they say nothing, the default is the "AltomateHR Notif" Bitrix chat. That's
+   fine for a trial, but other apps' alerts get lost there, so suggest a proper home.
+   Read `notifications.md` (next to this file) for what each channel needs and how
+   the person finds the IDs, e.g. a chat's dialog ID or a Telegram chat ID. Then tell
+   them exactly what to fetch. Alerts are sent only when a run fails; a passing run
+   only logs.
 7. **Their name and email**: every session runs under one shared account, so
    commits need the real author (step 8).
 
@@ -97,17 +96,27 @@ box themselves, over SSH or the DigitalOcean droplet console:
 `nano /root/argus/.env`, add the lines, save. **Don't collect the values in chat.**
 `.env` stays `chmod 600`.
 
-**Alert destination** (from step 1, item 6):
-- **Default chat:** add nothing.
-- **Another chat, person or several:** set `<APP>_BITRIX_DIALOG_ID`. Dialog IDs aren't secret, so
-  you may add this line yourself. Check it isn't already there, then append it:
-  `printf '<APP>_BITRIX_DIALOG_ID=chat1234\n' >> /root/argus/.env`.
-- **Different portal or user:** the person adds `<APP>_BITRIX_WEBHOOK_URL` themselves, like a
-  password.
+**Alert destinations** (from step 1, item 6). Set them in one line,
+`<APP>_NOTIFY`, comma-separated, e.g.
+`<APP>_NOTIFY=bitrix:chat1234, email:ops@fusioneta.com, slack:ops`.
+`notifications.md` has the exact format for each channel. Destinations aren't secret,
+so you may add this line yourself. Check it isn't already there, then append it:
+`printf '<APP>_NOTIFY=...\n' >> /root/argus/.env`.
 
-To pass these to your scripts, run them with `--env-file=/root/argus/.env`. Put
-`ARGUS_NO_NOTIFY=1` in front of every test run so test failures don't post to anyone's
-chat.
+Each channel also needs credentials, such as an SMTP login, a bot token or a webhook URL.
+Those are secrets. Check what's already there:
+
+```bash
+/opt/node24/bin/node --env-file=/root/argus/.env tools/notify.js --app <app> --check
+```
+
+A ✗ line names exactly which keys are missing. The person adds them themselves, like
+a password. Shared ones (`SMTP_HOST`, `SLACK_WEBHOOK_URL`, ...) serve every check;
+prefix one with `<APP>_` to override it for this check only, e.g.
+`<APP>_SMTP_FROM` or `<APP>_SLACK_WEBHOOK_URL`.
+
+To pass all of this to your scripts, run them with `--env-file=/root/argus/.env`. Put
+`ARGUS_NO_NOTIFY=1` in front of every test run, so test failures don't alert anyone.
 
 ## 4. Investigate, read-only
 
@@ -194,12 +203,12 @@ ARGUS_NO_NOTIFY=1 xvfb-run -a /opt/node24/bin/node --env-file=/root/argus/.env p
 - Check the **failure path** too: point it at a broken URL, e.g.
   `<APP>_URL=https://example.invalid` before the command. Confirm the report names
   the failure and `result.error` is set.
-- **Check the alert really arrives.** This is required whenever the destination isn't the
-  default chat. Tell the person to expect it, then run the deliberately failing
-  command once **without** `ARGUS_NO_NOTIFY=1`. Look for
-  `[report] sent to Bitrix <id>` for every destination, and ask them to confirm it
-  showed up. A `failed for chat…` error usually means Argus's webhook user isn't in
-  that chat yet.
+- **Check the alerts really arrive.** This is required for every check, and needs no
+  deliberate failure. Tell the person to expect a "🧪 Argus test alert", then:
+  `/opt/node24/bin/node --env-file=/root/argus/.env tools/notify.js --app <app> --test`.
+  Every destination must log `[report] sent to <channel>:<to>`. Ask the person to
+  confirm each one arrived; email may land in spam the first time. For each
+  `failed for …` line, see the troubleshooting notes in `notifications.md`.
 - For an approved write check, do only the number of runs they approved.
 
 Show the person the final passing report.
@@ -228,7 +237,9 @@ them the branch link and wait to push to `main` until they say so.
 ## 9. Deploy
 
 Dry run first, and show the person the output: the commits being pulled, the env
-keys found, and the crontab diff.
+keys found, where alerts will go, whether dependencies get reinstalled, and the
+crontab diff. It refuses while any alert destination is invalid or missing its
+credentials.
 
 ```bash
 tools/deploy.sh <app>/<action> "<min> <hour> * * 1-5" --dry-run
@@ -253,7 +264,8 @@ go. The dry run prints the destination.
 - **Changing:** do the same steps 2–9. Skip the cron part of step 9: `deploy.sh` refuses
   when the line already exists. Instead, fast-forward `/root/argus` yourself:
   `git -C /root/argus pull --ff-only`, after checking `git -C /root/argus status`
-  is clean.
+  is clean. If `package.json` or `package-lock.json` changed, follow it with
+  `cd /root/argus && PATH=/opt/node24/bin:$PATH npm ci`.
 - **Removing or rescheduling:** back up first with
   `crontab -l > /root/argus-crontab.bak-$(date +%Y%m%d-%H%M%S)`. Change only that
   check's line, show the person the diff, and install it on their yes. Never

@@ -2,9 +2,10 @@
 
 FusionETA's unattended browser smoke-test bot. Each check is a headed Playwright
 script that logs into an app, walks a journey and reports. Root's cron runs them on
-weekdays on the `agents-s-2vcpu-4gb-sgp1` droplet. Failures post to Bitrix24: each
-check's own chat(s) or people if it sets `<APP>_BITRIX_DIALOG_ID`, otherwise the
-default chat. Successful runs only log.
+weekdays on the `agents-s-2vcpu-4gb-sgp1` droplet. When a check fails, it alerts the
+destinations in its `<APP>_NOTIFY`: Bitrix24, WhatsApp, email, Telegram, Slack, Teams,
+Google Chat or any webhook, in any mix. Without that setting it uses the default Bitrix
+chat. Successful runs only log.
 
 **To add or change a check, ask Claude in a session on this repo.** The
 `argus-new-test` skill (`.claude/skills/argus-new-test/SKILL.md`) handles the
@@ -17,11 +18,12 @@ whole flow: intake, read-only investigation, plan, script, test, deploy.
 | `run.sh` | Cron wrapper: `run.sh <app>/<action>` runs `plugins/<app>/<action>.js` under `xvfb-run` and logs to `logs/<app>-<action>.log`. A bare `run.sh <action>` means AltomateHR (`logs/<action>.log`). |
 | `core/browser.js` | Launches headed Chromium with a geolocation-granted context. |
 | `core/guard.js` | `blockWrites(page)` aborts every POST/PUT/PATCH/DELETE after login, so read-only checks can't save anything. |
-| `core/report.js` | `sendReportOnFailure(result, text, { dialogId, webhook })`: always logs, posts to Bitrix only when `result.error` is set. `dialogId` is comma-separated chats (`chat1234`) and/or user IDs; both fall back to `BITRIX_DIALOG_ID` / `BITRIX_WEBHOOK_URL`. `ARGUS_NO_NOTIFY=1` suppresses all posts, for test runs. |
+| `core/report.js` | `sendReportOnFailure(result, text, { app })`: always logs, and on failure alerts every destination in `<APP>_NOTIFY`. With no app or no `<APP>_NOTIFY`, it uses the default Bitrix chat. Channel setup: `.claude/skills/argus-new-test/notifications.md`. `ARGUS_NO_NOTIFY=1` suppresses all sends, for test runs. |
+| `tools/notify.js` | `--app <app> --check` lists a check's alert destinations and missing credentials; `--test` sends a test alert to all of them. |
 | `core/time.js` | `nowMYT()` for report timestamps. |
 | `plugins/<app>/` | One folder per app: checks as `<action>.js`, helpers (incl. `login.js`) in `lib/`. |
 | `tools/recon.js` | Read-only page inventory and screenshots, for planning a new check. |
-| `tools/deploy.sh` | Fast-forwards `/root/argus` to `main` and appends one cron line, under a lock, with a crontab backup. |
+| `tools/deploy.sh` | Fast-forwards `/root/argus` to `main` (running `npm ci` if dependencies changed), checks alert destinations, and appends one cron line. Runs under a lock and backs up the crontab. |
 | `.claude/skills/argus-new-test/` | The workflow skill and a script template. It loads in any Claude Code session on this repo. |
 | `org-plugin/argus/` | Small org-wide plugin (published on claude.ai). It points people from any session to a "FusionAI" + FusionETA/argus session. |
 

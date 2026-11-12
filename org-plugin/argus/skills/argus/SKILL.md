@@ -1,6 +1,6 @@
 ---
 name: argus
-description: Entry point for Argus, FusionETA's unattended smoke-test bot that logs into our apps every weekday and alerts the Bitrix chat when something breaks. Use whenever someone wants a new automated/scheduled test, smoke test, monitor or Playwright script for one of our apps ("can Argus check our booking site every morning", "add a test for the invoice page", "make a bot that logs in and checks X"), wants to change or remove an Argus check, or asks how Argus works or why it alerted, even if they don't say "Argus".
+description: Entry point for Argus, FusionETA's unattended smoke-test bot that logs into our apps every weekday and alerts the team (Bitrix, WhatsApp, email, Telegram, Slack, Teams...) when something breaks. Use whenever someone wants a new automated/scheduled test, smoke test, monitor or Playwright script for one of our apps ("can Argus check our booking site every morning", "add a test for the invoice page", "make a bot that logs in and checks X"), wants to change or remove an Argus check, or asks how Argus works or why it alerted, even if they don't say "Argus".
 ---
 
 # Argus: where the work happens
@@ -31,8 +31,8 @@ test -d /root/argus && ls /root/self-hosted-claude/FusionETA/argus/.claude/skill
 
 - **What Argus is:** a scheduled, headed Playwright bot. Each check logs into an app with a
   test account and walks one journey. It is read-only unless an owner approved
-  otherwise. Failures post a report to the Bitrix chat(s) or people chosen for that
-  check, or to the default Argus chat. Passes only log.
+  otherwise. Failures alert the destinations chosen for that check: Bitrix24,
+  WhatsApp, email, Telegram, Slack, Teams, Google Chat or a webhook. Passes only log.
 - **Current checks:** listed in the repo's `README.md` ("Current checks").
 - **Logs:** on the droplet, in `/root/argus/logs/<app>-<action>.log` (AltomateHR:
   `/root/argus/logs/<action>.log`).
