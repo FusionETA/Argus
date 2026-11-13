@@ -15,12 +15,13 @@ whole flow: intake, read-only investigation, plan, script, test, deploy.
 
 | Path | What |
 | --- | --- |
-| `run.sh` | Cron wrapper: `run.sh <app>/<action>` runs `plugins/<app>/<action>.js` under `xvfb-run` and logs to `logs/<app>-<action>.log`. A bare `run.sh <action>` means AltomateHR (`logs/<action>.log`). |
+| `run.sh` | Cron wrapper: `run.sh <app>/<action>` runs `plugins/<app>/<action>.js` under `xvfb-run` and logs to `logs/<app>-<action>.log`. A bare `run.sh <action>` means AltomateHR (`logs/<action>.log`). A failed run is retried once after 5 minutes (`ARGUS_RETRY_DELAY`) and alerts only if it fails again; scripts containing `argus:no-retry` (checks that change data) are never retried. |
 | `core/browser.js` | Launches headed Chromium with a geolocation-granted context. `closeBrowser(browser, result)` saves a full-page screenshot of a failed run to `logs/screenshots/` (kept 30 days) before closing. |
 | `core/guard.js` | `blockWrites(page)` aborts every POST/PUT/PATCH/DELETE after login, so read-only checks can't save anything. |
-| `core/report.js` | `sendReportOnFailure(result, text, { app })`: always logs, and on failure alerts every destination in `<APP>_NOTIFY`. With no app or no `<APP>_NOTIFY`, it uses the default Bitrix chat. Channel setup: `.claude/skills/argus-new-test/notifications.md`. A failed run's screenshot is attached in Bitrix (needs the webhook's `disk` scope), email and Telegram, and named in every other channel. `ARGUS_NO_NOTIFY=1` suppresses all sends, for test runs. |
+| `core/report.js` | `sendReportOnFailure(result, text, { app })`: always logs, and on failure alerts every destination in `<APP>_NOTIFY`. With no app or no `<APP>_NOTIFY`, it uses the default Bitrix chat. Channel setup: `.claude/skills/argus-new-test/notifications.md`. A failed run's screenshot is attached in Bitrix (needs the webhook's `disk` scope), email and Telegram, and named in every other channel. Each check's last result is kept in `logs/state/<app>-<action>.json`: repeat failures say "failing since", and the first pass after a failure sends "✅ recovered". `ARGUS_NO_NOTIFY=1` suppresses all sends and leaves that state alone, for test runs. |
 | `tools/notify.js` | `--app <app> --check` lists a check's alert destinations and missing credentials; `--test` sends a test alert to all of them. |
 | `core/time.js` | `nowMYT()` for report timestamps. |
+| `core/check.js` | The running check's name (`<app>-<action>`) and the logs folder, for screenshots and state files. |
 | `plugins/<app>/` | One folder per app: checks as `<action>.js`, helpers (incl. `login.js`) in `lib/`. |
 | `tools/recon.js` | Read-only page inventory and screenshots, for planning a new check. |
 | `tools/deploy.sh` | Fast-forwards `/root/argus` to `main` (running `npm ci` if dependencies changed), checks alert destinations, and appends one cron line. Runs under a lock and backs up the crontab. |

@@ -4,6 +4,9 @@ import { login } from './lib/login.js';
 import { sendReportOnFailure } from '../../core/report.js';
 import { nowMYT } from '../../core/time.js';
 
+// argus:no-retry — this check clocks the smoke account out on PROD; run.sh must
+// never repeat it after a failure (a half-finished tap could double-act).
+
 const ACTION = 'Clock Out';
 const URL = process.env.ALTOMATEHR_URL;
 const EMAIL = process.env.ALTOMATEHR_EMAIL;

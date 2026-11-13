@@ -33,6 +33,14 @@ Telegram get the image itself. Slack, Teams, Google Chat, WhatsApp and webhooks 
 naming the file on the server. If the image can't be attached, the text alert still goes
 out, and the log line says why.
 
+## Retries and recovery
+
+Under cron, `run.sh` re-runs a failed check once after 5 minutes. Only a second failure
+alerts, and that alert says it failed twice. Checks that change data opt out (an
+`argus:no-retry` line) and alert on the first failure. While a check keeps failing,
+each alert adds "failing since …". The first pass after a failure sends "✅ recovered"
+to the same destinations. Test runs with `ARGUS_NO_NOTIFY=1` change none of this.
+
 ## Getting the IDs and credentials
 
 ### Bitrix24
