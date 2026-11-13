@@ -55,7 +55,21 @@ in one message:
    the person finds the IDs, e.g. a chat's dialog ID or a Telegram chat ID. Then tell
    them exactly what to fetch. Alerts are sent only when a run fails; a passing run
    only logs.
-7. **Their name and email**: every session runs under one shared account, so
+7. **Retry before alerting?** Under cron, a failed run can be re-run once, 5 minutes
+   later, so only a second failure alerts. Ask, and always give your recommendation
+   with the reason:
+   - **Read-only check: recommend retry (yes).** A re-run can't change anything, and it
+     filters out one-off blips like a slow page or a network hiccup. The cost is
+     hearing about a real outage 5 minutes later.
+   - **Check that changes data: recommend no retry.** A failure can happen after the
+     write went through (the save worked, but the confirmation was slow), and a
+     re-run would repeat the action or alert about the wrong thing. `clockin` and
+     `clockout` are set up this way.
+   - **Alerts must be instant**, e.g. a check someone acts on within minutes:
+     no retry, whatever the check does.
+
+   It's always one retry at most. If they don't decide, use the recommendation.
+8. **Their name and email**: every session runs under one shared account, so
    commits need the real author (step 8).
 
 Pick the names now. `<app>` and `<action>` are lowercase with dashes, e.g.
@@ -150,8 +164,10 @@ Work out and write down:
   rate limits, slow pages.
 
 Then **present the plan and wait for a yes**. Give the numbered steps the check will
-walk, where it stops, what counts as a failure, and the schedule. Don't write the
-script before they agree.
+walk, where it stops, what counts as a failure, the schedule, where alerts go, and
+**retry: yes or no, with your recommendation and why**. Re-check it against what the
+investigation found: a check that turned out to send emails or save anything is no
+longer read-only, so recommend no retry. Don't write the script before they agree.
 
 ## 5. Writes need explicit approval
 
@@ -174,7 +190,8 @@ read-only.
 A check that changes data must also contain a comment line with the marker
 `argus:no-retry`, next to its imports, saying what it changes. `run.sh` normally re-runs a failed check
 once before alerting; the marker stops that, so a half-finished write is never
-repeated. See `plugins/altomatehr/clockin.js`.
+repeated. See `plugins/altomatehr/clockin.js`. Add the same marker to any read-only
+check where the person chose no retry (step 1, item 7), with their reason.
 
 ## 6. Write the script
 
@@ -188,8 +205,9 @@ Conventions:
   for an approved write check.
 - **Results:** use one `result` object. Set `result.error` on any failure; that's what triggers
   the alert and makes the script exit 1. Successful runs only log. Under cron, a failure
-  is retried once after 5 minutes before anyone is alerted, and the first pass after a
-  failure sends "✅ recovered". Both are automatic and need no code.
+  is retried once after 5 minutes before anyone is alerted, unless the script has the
+  `argus:no-retry` marker (step 5). The first pass after a failure sends "✅ recovered".
+  Both are automatic and need no code.
 - **Screenshots:** always close with `closeBrowser(browser, result)`, not `closeBrowser(browser)`.
   On a failure it screenshots the page first, and the alert carries the image.
 - **Report:** one report built with `buildReport()` in the house format: 🤖 title, 📅 MYT
