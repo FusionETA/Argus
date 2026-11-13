@@ -182,7 +182,9 @@ Conventions:
 - **Write guard:** read-only checks call `blockWrites(page)` right after login. Leave it out only
   for an approved write check.
 - **Results:** use one `result` object. Set `result.error` on any failure; that's what triggers
-  the Bitrix alert. Successful runs only log.
+  the alert. Successful runs only log.
+- **Screenshots:** always close with `closeBrowser(browser, result)`, not `closeBrowser(browser)`.
+  On a failure it screenshots the page first, and the alert carries the image.
 - **Report:** one report built with `buildReport()` in the house format: 🤖 title, 📅 MYT
   time, 👤 account, one line per stage. Name the failing step and the URL.
 - **Logging:** prefix log lines with `[<action>]`. Never log passwords or tokens.

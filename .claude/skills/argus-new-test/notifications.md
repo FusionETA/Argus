@@ -25,6 +25,14 @@ with `tools/notify.js --app <app> --check | --test`.
 `<name>` lets one check post to several channels of the same kind, e.g.
 `slack:ops, slack:sales` → `SLACK_WEBHOOK_URL_OPS`, `SLACK_WEBHOOK_URL_SALES`.
 
+## Failure screenshots
+
+When a run fails, Argus screenshots the page (`logs/screenshots/`, kept 30 days).
+Bitrix (needs the webhook's `disk` scope, which Argus's default webhook has), email and
+Telegram get the image itself. Slack, Teams, Google Chat, WhatsApp and webhooks get a line
+naming the file on the server. If the image can't be attached, the text alert still goes
+out, and the log line says why.
+
 ## Getting the IDs and credentials
 
 ### Bitrix24
@@ -96,6 +104,7 @@ URL. Use it for n8n, Zapier, Make or an in-house endpoint.
 | Error | Usual cause |
 | --- | --- |
 | `bitrix:chat…` → `ACCESS_ERROR` / `CHAT_ID_EMPTY` | Argus's webhook user isn't in that chat, or the ID is wrong. |
+| `screenshot NOT attached: insufficient_scope` | The Bitrix webhook lacks the `disk` scope (needed for images). The text alert was sent. |
 | `email:` → `Invalid login` / `535` | Wrong password; Gmail needs an App Password; M365 SMTP AUTH is disabled. |
 | `email:` → timeout / `ECONNREFUSED` | Wrong host or port, or the provider blocks SMTP from servers. |
 | `telegram:` → `400 chat not found` | The bot isn't in the group, nobody pressed Start, or the ID is wrong. |
