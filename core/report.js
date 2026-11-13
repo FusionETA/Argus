@@ -29,9 +29,9 @@
 // (ARGUS_ATTEMPT < ARGUS_ATTEMPTS) the first failure only logs; the alert goes out
 // if the retry fails too. Each check's last final result is kept in
 // logs/state/<check>.json: a failure while already failing adds "failing since",
-// and the first pass after a failure sends "✅ recovered" to the same destinations.
+// and the first pass after a failure sends "✅ … is passing again" to the same destinations.
 // REPEAT LIMIT: while a check keeps failing it alerts at most once per day (MYT);
-// later failures that day only log. "Recovered" is always sent.
+// later failures that day only log. "Passing again" is always sent.
 //
 // ARGUS_NO_NOTIFY=1 suppresses every send (use it for test runs); such runs also
 // leave the stored state alone.
@@ -282,8 +282,14 @@ export async function sendReportOnFailure(result, text, { app } = {}) {
     const title = text.split('\n')[0].replace(/^\W*Argus\s*—\s*/u, '').replace(/\s*Report$/, '');
     const runs = `${prev.failedRuns} failed run${prev.failedRuns === 1 ? '' : 's'}`;
     await sendReport(
-      [`✅ Argus — ${title} recovered`, `📅 ${now} (MYT)`, '', `Passing again after failing since ${prev.since} (${runs}).`].join('\n'),
-      { app, subject: `[Argus] RECOVERED — ${title}` },
+      [
+        `✅ Argus — ${title} is passing again`,
+        `📅 ${now} (MYT)`,
+        '',
+        `It had been failing since ${prev.since} (${runs}). Argus doesn't know what changed; ` +
+          'if nobody fixed anything, the cause may come back.',
+      ].join('\n'),
+      { app, subject: `[Argus] Passing again — ${title}` },
     );
   }
   if (!suppressed()) writeState({ status: 'pass', since: prev?.status === 'pass' ? prev.since : now, lastRun: now });
