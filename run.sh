@@ -26,6 +26,18 @@ mkdir -p logs
 LOG="logs/${ACTION//\//-}.log"
 TS="$(date '+%Y-%m-%d %H:%M:%S %Z')"
 
+# Overlap guard: one run per check at a time. If the previous run is still going
+# (a slow site, a retry still waiting), this run is skipped instead of piling up.
+exec 8> "/run/lock/argus-${ACTION//\//-}.lock"
+if ! flock -n 8; then
+  echo "===== ${ACTION} @ ${TS}: previous run still going, skipped =====" >> "$LOG"
+  exit 0
+fi
+
+# Checks that don't open a browser ("argus:no-browser" line) skip the virtual display.
+LAUNCH=(/usr/bin/xvfb-run -a)
+grep -q 'argus:no-browser' "$SCRIPT" 2>/dev/null && LAUNCH=()
+
 # Retry: a failed run is run once more after ARGUS_RETRY_DELAY seconds (default
 # 300) and alerts only if it fails again (core/report.js holds the first alert
 # back). Scripts that change data opt out with an "argus:no-retry" line, so a
@@ -37,7 +49,7 @@ FIRST_FAILED_AT=""
 
 run_once() {
   ARGUS_ATTEMPT="$1" ARGUS_ATTEMPTS="$ATTEMPTS" ARGUS_FIRST_FAILED_AT="$FIRST_FAILED_AT" \
-    /usr/bin/xvfb-run -a "$NODE" "$SCRIPT" >> "$LOG" 2>&1
+    "${LAUNCH[@]}" "$NODE" "$SCRIPT" >> "$LOG" 2>&1
 }
 
 echo "===== ${ACTION} @ ${TS} =====" >> "$LOG"
