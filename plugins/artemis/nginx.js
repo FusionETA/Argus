@@ -117,7 +117,7 @@ const report = [
   `🤖 Argus — ${ACTION} Report`,
   `📅 ${nowMYT()} (MYT)`,
   '',
-  ...(verdict.ok ? [] : [...verdict.problems.map((p) => `🔴 ${p.text}`), '(Still failing after a re-check 30 s later.)', '']),
+  ...(verdict.ok ? [] : [...verdict.problems.map((p) => `🔴 ${p.text}`), `(Still failing after a re-check ${CONFIRM_MS / 1000} s later.)`, '']),
   `🌐 Public site ${SITE}/: ${show(facts.site)}`,
   `🧩 App behind nginx (/api/auth/refresh, normally 405): ${show(facts.app)}`,
   `🖥️ nginx on artemis, direct ${PRIVATE_IP}: ${show(facts.direct)}`,
