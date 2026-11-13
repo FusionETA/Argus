@@ -244,7 +244,8 @@ function writeState(state) {
   }
 }
 
-export async function sendReportOnFailure(result, text, { app } = {}) {
+// quietPass: a passing run logs nothing (for checks that run every few minutes).
+export async function sendReportOnFailure(result, text, { app, quietPass = false } = {}) {
   const attempt = Number(process.env.ARGUS_ATTEMPT || 1);
   const attempts = Number(process.env.ARGUS_ATTEMPTS || 1);
   const prev = suppressed() ? null : readState();
@@ -276,8 +277,10 @@ export async function sendReportOnFailure(result, text, { app } = {}) {
     return;
   }
 
-  console.log('\n----- REPORT -----\n' + text + '\n------------------');
-  console.log('[report] all checks passed — logged only, no notification sent');
+  if (!quietPass) {
+    console.log('\n----- REPORT -----\n' + text + '\n------------------');
+    console.log('[report] all checks passed — logged only, no notification sent');
+  }
   if (prev?.status === 'fail') {
     const title = text.split('\n')[0].replace(/^\W*Argus\s*—\s*/u, '').replace(/\s*Report$/, '');
     const runs = `${prev.failedRuns} failed run${prev.failedRuns === 1 ? '' : 's'}`;
