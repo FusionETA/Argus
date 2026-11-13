@@ -206,7 +206,7 @@ Conventions:
 - **Results:** use one `result` object. Set `result.error` on any failure; that's what triggers
   the alert and makes the script exit 1. Successful runs only log. Under cron, a failure
   is retried once after 5 minutes before anyone is alerted, unless the script has the
-  `argus:no-retry` marker (step 5). The first pass after a failure sends "✅ recovered".
+  `argus:no-retry` marker (step 5). The first pass after a failure sends "✅ … is passing again" (Argus can't tell what fixed it).
   Both are automatic and need no code.
 - **Screenshots:** always close with `closeBrowser(browser, result)`, not `closeBrowser(browser)`.
   On a failure it screenshots the page first, and the alert carries the image.

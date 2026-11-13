@@ -38,7 +38,9 @@ out, and the log line says why.
 Under cron, `run.sh` re-runs a failed check once after 5 minutes. Only a second failure
 alerts, and that alert says it failed twice. Checks that change data opt out (an
 `argus:no-retry` line) and alert on the first failure. While a check keeps failing,
-each alert adds "failing since …". The first pass after a failure sends "✅ recovered"
+it alerts **at most once a day** (MYT); later failures that day are only logged, and the
+next day's alert adds "failing since …". A new failure after a recovery alerts straight
+away. The first pass after a failure sends "✅ … is passing again" (Argus can't tell what fixed it)
 to the same destinations. Test runs with `ARGUS_NO_NOTIFY=1` change none of this.
 
 ## Getting the IDs and credentials
