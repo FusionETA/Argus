@@ -3,6 +3,9 @@ import { launchBrowser, closeBrowser } from '../../core/browser.js';
 import { login } from './lib/login.js';
 import { sendReportOnFailure } from '../../core/report.js';
 import { nowMYT } from '../../core/time.js';
+
+// argus:no-retry — this check clocks the smoke account in on PROD; run.sh must
+// never repeat it after a failure (a half-finished tap could double-act).
 import { navCheck } from './lib/claims-actions.js';
 
 // Argus 09:00 run — one login, then clock in followed by the read-only claims

@@ -25,9 +25,18 @@
 // channel can carry a file: Bitrix (needs the webhook's "disk" scope; the text
 // still goes out without it), email, Telegram.
 //
-// ARGUS_NO_NOTIFY=1 suppresses every send (use it for test runs).
-import { readFileSync } from 'node:fs';
-import { basename } from 'node:path';
+// RETRY + RECOVERED: a failed run exits 1. When run.sh will retry it
+// (ARGUS_ATTEMPT < ARGUS_ATTEMPTS) the first failure only logs; the alert goes out
+// if the retry fails too. Each check's last final result is kept in
+// logs/state/<check>.json: a failure while already failing adds "failing since",
+// and the first pass after a failure sends "✅ recovered" to the same destinations.
+//
+// ARGUS_NO_NOTIFY=1 suppresses every send (use it for test runs); such runs also
+// leave the stored state alone.
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
+import { CHECK_NAME, LOGS_DIR } from './check.js';
+import { nowMYT } from './time.js';
 
 const env = (app, key) => (app && process.env[`${app}_${key}`]) || process.env[key] || '';
 // slack -> SLACK_WEBHOOK_URL, slack:ops -> SLACK_WEBHOOK_URL_OPS; the generic
@@ -217,19 +226,62 @@ export function resolveTargets(app) {
   return { source, targets, problems };
 }
 
-export async function sendReportOnFailure(result, text, { app } = {}) {
-  if (result?.screenshot) text += `\n\n📸 Screenshot: logs/screenshots/${basename(result.screenshot)} on the Argus server`;
-  console.log('\n----- REPORT -----\n' + text + '\n------------------');
-  if (result && result.error) {
-    await sendReport(text, { app, screenshot: result.screenshot });
-  } else {
-    console.log('[report] all checks passed — logged only, no notification sent');
+const suppressed = () => /^(1|true|yes)$/i.test(process.env.ARGUS_NO_NOTIFY || '');
+const STATE_FILE = join(LOGS_DIR, 'state', `${CHECK_NAME}.json`);
+
+function readState() {
+  try { return JSON.parse(readFileSync(STATE_FILE, 'utf8')); } catch { return null; }
+}
+
+function writeState(state) {
+  try {
+    mkdirSync(join(LOGS_DIR, 'state'), { recursive: true });
+    writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+  } catch (err) {
+    console.error(`[report] could not save check state: ${err.message}`);
   }
+}
+
+export async function sendReportOnFailure(result, text, { app } = {}) {
+  const attempt = Number(process.env.ARGUS_ATTEMPT || 1);
+  const attempts = Number(process.env.ARGUS_ATTEMPTS || 1);
+  const prev = suppressed() ? null : readState();
+  const now = nowMYT();
+
+  if (result?.error) {
+    process.exitCode = 1;
+    if (result.screenshot) text += `\n\n📸 Screenshot: logs/screenshots/${basename(result.screenshot)} on the Argus server`;
+    if (attempt < attempts) {
+      console.log('\n----- REPORT -----\n' + text + '\n------------------');
+      console.log(`[report] failed on attempt ${attempt} of ${attempts} — no alert yet; run.sh will retry`);
+      return;
+    }
+    if (attempts > 1) text += `\n🔁 Failed at ${process.env.ARGUS_FIRST_FAILED_AT || 'the first try'} and again on the retry.`;
+    const stillFailing = prev?.status === 'fail';
+    const failedRuns = (stillFailing ? prev.failedRuns : 0) + 1;
+    if (stillFailing) text += `\n⏳ Failing since ${prev.since} (${failedRuns} failed runs in a row).`;
+    console.log('\n----- REPORT -----\n' + text + '\n------------------');
+    await sendReport(text, { app, screenshot: result.screenshot });
+    if (!suppressed()) writeState({ status: 'fail', since: stillFailing ? prev.since : now, failedRuns, lastRun: now });
+    return;
+  }
+
+  console.log('\n----- REPORT -----\n' + text + '\n------------------');
+  console.log('[report] all checks passed — logged only, no notification sent');
+  if (prev?.status === 'fail') {
+    const title = text.split('\n')[0].replace(/^\W*Argus\s*—\s*/u, '').replace(/\s*Report$/, '');
+    const runs = `${prev.failedRuns} failed run${prev.failedRuns === 1 ? '' : 's'}`;
+    await sendReport(
+      [`✅ Argus — ${title} recovered`, `📅 ${now} (MYT)`, '', `Passing again after failing since ${prev.since} (${runs}).`].join('\n'),
+      { app, subject: `[Argus] RECOVERED — ${title}` },
+    );
+  }
+  if (!suppressed()) writeState({ status: 'pass', since: prev?.status === 'pass' ? prev.since : now, lastRun: now });
 }
 
 // Sends `text` to every destination of `app`; one failing channel doesn't stop the rest.
 export async function sendReport(text, { app, subject, screenshot } = {}) {
-  if (/^(1|true|yes)$/i.test(process.env.ARGUS_NO_NOTIFY || '')) {
+  if (suppressed()) {
     console.log('[report] ARGUS_NO_NOTIFY set — notifications suppressed');
     return;
   }
