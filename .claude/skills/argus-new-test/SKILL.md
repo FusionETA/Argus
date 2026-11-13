@@ -49,7 +49,7 @@ in one message:
    - **Slack, Microsoft Teams or Google Chat**: a channel, via an incoming webhook.
    - **Generic webhook**: a JSON POST to any URL (n8n, Zapier, an in-house app).
 
-   If they say nothing, the default is the "AltomateHR Notif" Bitrix chat. That's
+   If they say nothing, the default is the "AltomateHR Alert Log" Bitrix chat. That's
    fine for a trial, but other apps' alerts get lost there, so suggest a proper home.
    Read `notifications.md` (next to this file) for what each channel needs and how
    the person finds the IDs, e.g. a chat's dialog ID or a Telegram chat ID. Then tell
@@ -171,6 +171,11 @@ write it:
 Copy that approval into the commit message (step 8). Without it, keep the check
 read-only.
 
+A check that changes data must also contain a comment line with the marker
+`argus:no-retry`, next to its imports, saying what it changes. `run.sh` normally re-runs a failed check
+once before alerting; the marker stops that, so a half-finished write is never
+repeated. See `plugins/altomatehr/clockin.js`.
+
 ## 6. Write the script
 
 Start from `.claude/skills/argus-new-test/template.js`. Copy it to
@@ -182,7 +187,9 @@ Conventions:
 - **Write guard:** read-only checks call `blockWrites(page)` right after login. Leave it out only
   for an approved write check.
 - **Results:** use one `result` object. Set `result.error` on any failure; that's what triggers
-  the alert. Successful runs only log.
+  the alert and makes the script exit 1. Successful runs only log. Under cron, a failure
+  is retried once after 5 minutes before anyone is alerted, and the first pass after a
+  failure sends "✅ recovered". Both are automatic and need no code.
 - **Screenshots:** always close with `closeBrowser(browser, result)`, not `closeBrowser(browser)`.
   On a failure it screenshots the page first, and the alert carries the image.
 - **Report:** one report built with `buildReport()` in the house format: 🤖 title, 📅 MYT
