@@ -122,7 +122,7 @@ try {
   if (!result.error) result.error = err.message;
   console.error(`[clockin] run failed: ${err.message}`);
 } finally {
-  await closeBrowser(browser);
+  await closeBrowser(browser, result);
   await sendReportOnFailure(result, buildReport(result));
 }
 
