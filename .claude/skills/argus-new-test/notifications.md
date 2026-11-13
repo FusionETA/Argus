@@ -14,7 +14,7 @@ with `tools/notify.js --app <app> --check | --test`.
 | Channel | Destination in `<APP>_NOTIFY` | Credentials needed |
 | --- | --- | --- |
 | Bitrix24 | `bitrix:chat1234` (group chat), `bitrix:57` (DM to user 57) | `BITRIX_WEBHOOK_URL` (already set, shared) |
-| WhatsApp (Wazzup) | `whatsapp:60123456789` | `WAZZUP_API_KEY`, `WAZZUP_CHANNEL_ID` (set, but see status below) |
+| WhatsApp (Wazzup) | `whatsapp:60123456789` | `<APP>_WAZZUP_API_KEY`, `<APP>_WAZZUP_CHANNEL_ID`: per app, there's no shared Wazzup account |
 | Email (SMTP) | `email:ops@fusioneta.com` | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`; optional `SMTP_PORT` (default 587), `SMTP_FROM` (default = user) |
 | Telegram | `telegram:-1001234567890` (group), `telegram:123456789` (person) | `TELEGRAM_BOT_TOKEN` |
 | Slack | `slack`, or `slack:<name>` | `SLACK_WEBHOOK_URL`, or `SLACK_WEBHOOK_URL_<NAME>` |
@@ -58,10 +58,10 @@ to the same destinations. Test runs with `ARGUS_NO_NOTIFY=1` change none of this
 
 ### WhatsApp (Wazzup)
 - **Number format:** international, digits only (`60123456789`; `+60 12-345 6789` also works).
-- **Status on 2026-11-12:** the Wazzup key works, but the account's WhatsApp channel is
-  **blocked** and `WAZZUP_CHANNEL_ID` doesn't match any of its channels. **WhatsApp alerts
-  won't arrive** until someone fixes the channel in Wazzup and puts its `channelId`
-  in `WAZZUP_CHANNEL_ID`. Always confirm with `--test`, and offer another channel too.
+- **No shared account:** Argus has no company-wide Wazzup account. An app that wants
+  WhatsApp alerts brings its own: its Wazzup API key as `<APP>_WAZZUP_API_KEY` and its
+  WhatsApp channel's `channelId` (from Wazzup) as `<APP>_WAZZUP_CHANNEL_ID`. Both are
+  secrets, so the person adds them on the box. Always confirm with `--test`.
 - **24-hour rule:** if Wazzup rejects messages with a 24-hour-window or template error, the
   channel is a WhatsApp Business API one. Free-text alerts then only reach people who
   messaged that number in the last 24 hours, so use another channel.
@@ -120,4 +120,4 @@ URL. Use it for n8n, Zapier, Make or an in-house endpoint.
 | `telegram:` → `400 chat not found` | The bot isn't in the group, nobody pressed Start, or the ID is wrong. |
 | `telegram:` → `401` / `404` | Bad bot token. |
 | `slack` / `teams` / `googlechat` → `404` / `403` | The webhook URL was deleted or mistyped. |
-| `whatsapp:` → `4xx` | The Wazzup channel is blocked, or the channel ID is wrong (see status above). |
+| `whatsapp:` → `4xx` | The app's Wazzup channel is blocked or isn't a WhatsApp channel, or the key or channel ID is wrong. |

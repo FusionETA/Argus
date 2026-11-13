@@ -43,7 +43,8 @@ in one message:
    can alert any mix of destinations, e.g. their team's Bitrix chat plus an email
    address:
    - **Bitrix24**: a group chat or a direct message to a person.
-   - **WhatsApp** (via Wazzup): a phone number.
+   - **WhatsApp** (via Wazzup): a phone number. Needs that app's own Wazzup account;
+     there's no shared one (see `notifications.md`).
    - **Email** (via SMTP): one or more addresses.
    - **Telegram**: a group or person, via a bot.
    - **Slack, Microsoft Teams or Google Chat**: a channel, via an incoming webhook.
