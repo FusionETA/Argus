@@ -20,13 +20,52 @@
 // MY_APP_BITRIX_WEBHOOK_URL, ... Webhook URLs and tokens are secrets and are
 // never logged.
 //
+// SCREENSHOTS: a failed run's screenshot (result.screenshot, taken by
+// closeBrowser) is named in the text for every channel, and attached where the
+// channel can carry a file: Bitrix (needs the webhook's "disk" scope; the text
+// still goes out without it), email, Telegram.
+//
 // ARGUS_NO_NOTIFY=1 suppresses every send (use it for test runs).
+import { readFileSync } from 'node:fs';
+import { basename } from 'node:path';
 
 const env = (app, key) => (app && process.env[`${app}_${key}`]) || process.env[key] || '';
 // slack -> SLACK_WEBHOOK_URL, slack:ops -> SLACK_WEBHOOK_URL_OPS; the generic
 // webhook channel uses WEBHOOK_URL / WEBHOOK_URL_<NAME>.
 const hookKey = (ch, name) =>
   `${ch === 'webhook' ? '' : `${ch.toUpperCase()}_`}WEBHOOK_URL${name ? `_${name.toUpperCase().replace(/-/g, '_')}` : ''}`;
+
+// One Bitrix REST call through the webhook; throws "<ERROR_CODE>: <description>".
+async function bitrixCall(hook, method, params) {
+  const res = await fetch(`${hook}/${method}.json`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(params),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.error) {
+    throw new Error(`${json.error || `HTTP ${res.status}`}: ${String(json.error_description || '').slice(0, 200)}`);
+  }
+  return json.result;
+}
+
+// Posts a file into the chat behind DIALOG_ID: find the chat's file folder,
+// upload there, then commit it to the chat as a message.
+async function bitrixAttach(hook, dialogId, file) {
+  const chatId = dialogId.startsWith('chat')
+    ? dialogId.slice(4)
+    : (await bitrixCall(hook, 'im.dialog.get', { DIALOG_ID: dialogId })).id;
+  const folder = await bitrixCall(hook, 'im.disk.folder.get', { CHAT_ID: chatId });
+  const name = basename(file);
+  const uploaded = await bitrixCall(hook, 'disk.folder.uploadfile', {
+    id: folder.ID,
+    'data[NAME]': name,
+    'fileContent[0]': name,
+    'fileContent[1]': readFileSync(file).toString('base64'),
+    generateUniqueName: 'Y',
+  });
+  await bitrixCall(hook, 'im.disk.file.commit', { CHAT_ID: chatId, UPLOAD_ID: uploaded.ID });
+}
 
 async function postJson(url, payload, headers = {}) {
   const res = await fetch(url, {
@@ -43,16 +82,17 @@ const CHANNELS = {
   bitrix: {
     valid: (to) => /^(chat\d+|\d+)$/.test(to),
     needs: () => ['BITRIX_WEBHOOK_URL'],
-    async send(to, text, { app }) {
+    async send(to, text, { app, screenshot }) {
       const hook = env(app, 'BITRIX_WEBHOOK_URL').trim().replace(/\/+$/, '');
-      const res = await fetch(`${hook}/im.message.add.json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ DIALOG_ID: to, MESSAGE: text }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || json.error) throw new Error(`HTTP ${res.status} ${JSON.stringify(json).slice(0, 300)}`);
-      return `message id ${json.result ?? '?'}`;
+      const id = await bitrixCall(hook, 'im.message.add', { DIALOG_ID: to, MESSAGE: text });
+      if (!screenshot) return `message id ${id}`;
+      try {
+        await bitrixAttach(hook, to, screenshot);
+        return `message id ${id}, screenshot attached`;
+      } catch (err) {
+        const hint = /scope/i.test(err.message) ? ' (the webhook needs the "disk" permission)' : '';
+        return `message id ${id}; screenshot NOT attached: ${err.message}${hint}`;
+      }
     },
   },
   whatsapp: {
@@ -71,7 +111,7 @@ const CHANNELS = {
   email: {
     valid: (to) => /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(to),
     needs: () => ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD'],
-    async send(to, text, { app, subject }) {
+    async send(to, text, { app, subject, screenshot }) {
       const { default: nodemailer } = await import('nodemailer');
       const port = Number(env(app, 'SMTP_PORT') || 587);
       const transport = nodemailer.createTransport({
@@ -85,16 +125,30 @@ const CHANNELS = {
         to,
         subject,
         text,
+        attachments: screenshot ? [{ filename: basename(screenshot), path: screenshot }] : [],
       });
-      return `message id ${info.messageId}`;
+      return `message id ${info.messageId}${screenshot ? ', screenshot attached' : ''}`;
     },
   },
   telegram: {
     valid: (to) => /^(-?\d+|@\w{5,})$/.test(to),
     needs: () => ['TELEGRAM_BOT_TOKEN'],
-    async send(to, text, { app }) {
+    async send(to, text, { app, screenshot }) {
       const api = process.env.ARGUS_TELEGRAM_API || 'https://api.telegram.org'; // override for tests only
-      await postJson(`${api}/bot${env(app, 'TELEGRAM_BOT_TOKEN')}/sendMessage`, { chat_id: to, text });
+      const bot = `${api}/bot${env(app, 'TELEGRAM_BOT_TOKEN')}`;
+      await postJson(`${bot}/sendMessage`, { chat_id: to, text });
+      if (!screenshot) return '';
+      try {
+        const form = new FormData();
+        form.set('chat_id', to);
+        form.set('caption', 'Screenshot at the moment of failure');
+        form.set('photo', new Blob([readFileSync(screenshot)], { type: 'image/jpeg' }), basename(screenshot));
+        const res = await fetch(`${bot}/sendPhoto`, { method: 'POST', body: form });
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+        return 'screenshot attached';
+      } catch (err) {
+        return `screenshot NOT attached: ${err.message}`;
+      }
     },
   },
   slack: webhookChannel('slack', (text) => ({ text })),
@@ -164,16 +218,17 @@ export function resolveTargets(app) {
 }
 
 export async function sendReportOnFailure(result, text, { app } = {}) {
+  if (result?.screenshot) text += `\n\n📸 Screenshot: logs/screenshots/${basename(result.screenshot)} on the Argus server`;
   console.log('\n----- REPORT -----\n' + text + '\n------------------');
   if (result && result.error) {
-    await sendReport(text, { app });
+    await sendReport(text, { app, screenshot: result.screenshot });
   } else {
     console.log('[report] all checks passed — logged only, no notification sent');
   }
 }
 
 // Sends `text` to every destination of `app`; one failing channel doesn't stop the rest.
-export async function sendReport(text, { app, subject } = {}) {
+export async function sendReport(text, { app, subject, screenshot } = {}) {
   if (/^(1|true|yes)$/i.test(process.env.ARGUS_NO_NOTIFY || '')) {
     console.log('[report] ARGUS_NO_NOTIFY set — notifications suppressed');
     return;
@@ -185,7 +240,7 @@ export async function sendReport(text, { app, subject } = {}) {
     if (!ok) continue;
     const label = to ? `${channel}:${to}` : channel;
     try {
-      const info = await CHANNELS[channel].send(to, text, { app, subject: subj });
+      const info = await CHANNELS[channel].send(to, text, { app, subject: subj, screenshot });
       console.log(`[report] sent to ${label}${info ? ` (${info})` : ''}`);
     } catch (err) {
       console.error(`[report] failed for ${label}: ${err.message}`);
