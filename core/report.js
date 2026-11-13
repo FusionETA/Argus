@@ -30,6 +30,8 @@
 // if the retry fails too. Each check's last final result is kept in
 // logs/state/<check>.json: a failure while already failing adds "failing since",
 // and the first pass after a failure sends "✅ recovered" to the same destinations.
+// REPEAT LIMIT: while a check keeps failing it alerts at most once per day (MYT);
+// later failures that day only log. "Recovered" is always sent.
 //
 // ARGUS_NO_NOTIFY=1 suppresses every send (use it for test runs); such runs also
 // leave the stored state alone.
@@ -261,8 +263,16 @@ export async function sendReportOnFailure(result, text, { app } = {}) {
     const failedRuns = (stillFailing ? prev.failedRuns : 0) + 1;
     if (stillFailing) text += `\n⏳ Failing since ${prev.since} (${failedRuns} failed runs in a row).`;
     console.log('\n----- REPORT -----\n' + text + '\n------------------');
-    await sendReport(text, { app, screenshot: result.screenshot });
-    if (!suppressed()) writeState({ status: 'fail', since: stillFailing ? prev.since : now, failedRuns, lastRun: now });
+    const today = now.slice(0, 10); // dd/mm/yyyy
+    const alertedToday = stillFailing && prev.lastAlert === today;
+    if (alertedToday) {
+      console.log(`[report] still failing — already alerted today, so no repeat alert (next one tomorrow if it's still broken)`);
+    } else {
+      await sendReport(text, { app, screenshot: result.screenshot });
+    }
+    if (!suppressed()) {
+      writeState({ status: 'fail', since: stillFailing ? prev.since : now, failedRuns, lastAlert: today, lastRun: now });
+    }
     return;
   }
 
