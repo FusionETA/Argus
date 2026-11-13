@@ -213,6 +213,11 @@ Conventions:
 - **Report:** one report built with `buildReport()` in the house format: 🤖 title, 📅 MYT
   time, 👤 account, one line per stage. Name the failing step and the URL.
 - **Logging:** prefix log lines with `[<action>]`. Never log passwords or tokens.
+- **Uptime-style checks** (is a site or server up?) don't need a login or a browser: use
+  plain requests, add an `argus:no-browser` line, and pass `quietPass: true` to
+  `sendReportOnFailure` so passing runs log one line. If it runs every few minutes,
+  re-check inside the script instead of `run.sh`'s 5-minute retry (`argus:no-retry`).
+  Model: `plugins/artemis/nginx.js`.
 - **Shared code:** put helpers several checks need in `plugins/<app>/lib/`. Keep `core/`
   app-agnostic, and don't change `core/` without checking that the AltomateHR jobs
   still work.
