@@ -1,0 +1,13 @@
+# Argus log tidy-up. Installed as /etc/logrotate.d/argus (see README); logrotate
+# runs nightly and rotates these weekly, keeping 8 weeks, compressed.
+# run.sh opens its log afresh on every run, so rotating by rename is safe: the next
+# run simply starts a new file. Screenshots (30 days) and state files are left alone.
+/root/argus/logs/*.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    nocreate
+}

@@ -24,6 +24,7 @@ whole flow: intake, read-only investigation, plan, script, test, deploy.
 | `core/check.js` | The running check's name (`<app>-<action>`) and the logs folder, for screenshots and state files. |
 | `plugins/<app>/` | One folder per app: checks as `<action>.js`, helpers (incl. `login.js`) in `lib/`. |
 | `tools/recon.js` | Read-only page inventory and screenshots, for planning a new check. |
+| `tools/argus.logrotate` | Weekly log tidy-up: `logs/*.log` rotated weekly, 8 weeks kept, compressed. Installed as `/etc/logrotate.d/argus` (`install -m 0644 tools/argus.logrotate /etc/logrotate.d/argus`); Ubuntu's nightly logrotate does the rest. |
 | `tools/deploy.sh` | Fast-forwards `/root/argus` to `main` (running `npm ci` if dependencies changed), checks alert destinations, and appends one cron line. Runs under a lock and backs up the crontab. |
 | `.claude/skills/argus-new-test/` | The workflow skill and a script template. It loads in any Claude Code session on this repo. |
 | `org-plugin/argus/` | Small org-wide plugin (published on claude.ai). It points people from any session to a "FusionAI" + FusionETA/argus session. |
